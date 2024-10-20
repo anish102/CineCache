@@ -1,15 +1,21 @@
 from enum import Enum as PyEnum
 
-from app.database import Base
-from sqlalchemy import Column, Date, Enum, ForeignKey, Integer, String
+from sqlalchemy import Column, Date, Enum, ForeignKey, Integer, String, func
 from sqlalchemy.orm import relationship
-from sqlalchemy.sql import func
+
+from app.database import Base
 
 
 class WatchStatus(PyEnum):
     watched = "watched"
     to_watch = "to-watch"
     watching = "watching"
+
+
+class MediaType(PyEnum):
+    movie = "movie"
+    series = "series"
+    anime = "anime"
 
 
 class User(Base):
@@ -20,58 +26,24 @@ class User(Base):
     email = Column(String, unique=True, index=True)
     username = Column(String, unique=True, index=True)
     hashed_password = Column(String)
-    movies = relationship("Movie", back_populates="user")
-    series = relationship("Series", back_populates="user")
-    anime = relationship("Anime", back_populates="user")
+    media = relationship("Media", back_populates="user")
 
 
-class Movie(Base):
-    __tablename__ = "movies"
+class Media(Base):
+    __tablename__ = "media"
 
     id = Column(Integer, primary_key=True, index=True)
     name = Column(String, index=True)
     genre = Column(String)
-    actor = Column(String)
+    media_type = Column(Enum(MediaType))
+    actor = Column(String, nullable=True)
+    character = Column(String, nullable=True)
+    seasons = Column(Integer, nullable=True)
+    episodes = Column(Integer, nullable=True)
     release_date = Column(Date)
     status = Column(Enum(WatchStatus))
     rating = Column(Integer)
     added_on = Column(Date, server_default=func.current_date())
-    watched_on = Column(Date)
+    watched_on = Column(Date, nullable=True)
     user_id = Column(Integer, ForeignKey("users.id"))
-    user = relationship("User", back_populates="movies")
-
-
-class Series(Base):
-    __tablename__ = "series"
-
-    id = Column(Integer, primary_key=True, index=True)
-    name = Column(String, index=True)
-    genre = Column(String)
-    seasons = Column(Integer)
-    episodes = Column(Integer)
-    actor = Column(String)
-    release_date = Column(Date)
-    status = Column(Enum(WatchStatus))
-    rating = Column(Integer)
-    added_on = Column(Date, server_default=func.current_date())
-    watched_on = Column(Date)
-    user_id = Column(Integer, ForeignKey("users.id"))
-    user = relationship("User", back_populates="series")
-
-
-class Anime(Base):
-    __tablename__ = "anime"
-
-    id = Column(Integer, primary_key=True, index=True)
-    name = Column(String, index=True)
-    genre = Column(String)
-    seasons = Column(Integer)
-    episodes = Column(Integer)
-    character = Column(String)
-    release_date = Column(Date)
-    status = Column(Enum(WatchStatus))
-    rating = Column(Integer)
-    added_on = Column(Date, server_default=func.current_date())
-    watched_on = Column(Date)
-    user_id = Column(Integer, ForeignKey("users.id"))
-    user = relationship("User", back_populates="anime")
+    user = relationship("User", back_populates="media")

@@ -1,8 +1,9 @@
-from app.database import get_db
-from app.models import User
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
+
+from app.database import get_db
+from app.models import User
 
 router = APIRouter()
 
@@ -36,3 +37,27 @@ async def add_user(user: UserCreate, db: Session = Depends(get_db)):
     db.commit()
     db.refresh(new_user)
     return {"message": "User created successfully"}
+
+
+@router.put("/user/{user_id}")
+async def read_user(user_id: int, user: UserCreate, db: Session = Depends(get_db)):
+    old_user = db.query(User).filter(User.id == user_id).first()
+    if not old_user:
+        raise HTTPException(status_code=404, detail=f"No user with id {user_id} found")
+    old_user.name = user.name if user.name else None
+    old_user.email = user.email if user.email else None
+    old_user.username = user.username if user.username else None
+    db.add(user)
+    db.commit()
+    db.refresh(user)
+    return {"message": "User updated successfully"}
+
+
+@router.delete("/user/{user_id}")
+async def read_user(user_id: int, db: Session = Depends(get_db)):
+    user = db.query(User).filter(User.id == user_id).first()
+    if not user:
+        raise HTTPException(status_code=404, detail=f"No user with id {user_id} found")
+    db.delete(user)
+    db.commit()
+    return {"message": "User deleted successfully"}
