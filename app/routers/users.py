@@ -1,4 +1,5 @@
 from fastapi import APIRouter, Depends, HTTPException
+from passlib.context import CryptContext
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
@@ -7,11 +8,18 @@ from app.models import User
 
 router = APIRouter()
 
+pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
+
+
+def get_password_hash(password: str) -> str:
+    return pwd_context.hash(password)
+
 
 class UserCreate(BaseModel):
     name: str
     email: str
     username: str
+    password: str
 
 
 @router.get("/users/")
@@ -32,7 +40,13 @@ async def read_user(user_id: int, db: Session = Depends(get_db)):
 
 @router.post("/user/")
 async def add_user(user: UserCreate, db: Session = Depends(get_db)):
-    new_user = User(name=user.name, email=user.email, username=user.username)
+    hashed_password = get_password_hash(user.password)
+    new_user = User(
+        name=user.name,
+        email=user.email,
+        username=user.username,
+        password=hashed_password,
+    )
     db.add(new_user)
     db.commit()
     db.refresh(new_user)
@@ -40,21 +54,22 @@ async def add_user(user: UserCreate, db: Session = Depends(get_db)):
 
 
 @router.put("/user/{user_id}")
-async def read_user(user_id: int, user: UserCreate, db: Session = Depends(get_db)):
+async def update_user(user_id: int, user: UserCreate, db: Session = Depends(get_db)):
     old_user = db.query(User).filter(User.id == user_id).first()
     if not old_user:
         raise HTTPException(status_code=404, detail=f"No user with id {user_id} found")
-    old_user.name = user.name if user.name else None
-    old_user.email = user.email if user.email else None
-    old_user.username = user.username if user.username else None
-    db.add(user)
+    old_user.name = user.name
+    old_user.email = user.email
+    old_user.username = user.username
+    if user.password:
+        old_user.password = get_password_hash(user.password)
     db.commit()
-    db.refresh(user)
+    db.refresh(old_user)
     return {"message": "User updated successfully"}
 
 
 @router.delete("/user/{user_id}")
-async def read_user(user_id: int, db: Session = Depends(get_db)):
+async def delete_user(user_id: int, db: Session = Depends(get_db)):
     user = db.query(User).filter(User.id == user_id).first()
     if not user:
         raise HTTPException(status_code=404, detail=f"No user with id {user_id} found")
