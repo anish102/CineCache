@@ -11,7 +11,7 @@ router = APIRouter()
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
 
-def get_password_hash(password: str) -> str:
+def get_password_hash(password):
     return pwd_context.hash(password)
 
 
@@ -45,7 +45,7 @@ async def add_user(user: UserCreate, db: Session = Depends(get_db)):
         name=user.name,
         email=user.email,
         username=user.username,
-        password=hashed_password,
+        hashed_password=hashed_password,
     )
     db.add(new_user)
     db.commit()
@@ -62,7 +62,7 @@ async def update_user(user_id: int, user: UserCreate, db: Session = Depends(get_
     old_user.email = user.email
     old_user.username = user.username
     if user.password:
-        old_user.password = get_password_hash(user.password)
+        old_user.hashed_password = get_password_hash(user.password)
     db.commit()
     db.refresh(old_user)
     return {"message": "User updated successfully"}
