@@ -1,3 +1,5 @@
+from typing import List
+
 from fastapi import APIRouter, Depends, HTTPException
 from passlib.context import CryptContext
 from pydantic import BaseModel
@@ -15,31 +17,34 @@ def get_password_hash(password):
     return pwd_context.hash(password)
 
 
-class UserCreate(BaseModel):
+class UserBase(BaseModel):
     name: str
     email: str
     username: str
+
+
+class UserCreate(UserBase):
     password: str
 
 
-@router.get("/users/")
+@router.get("/users/", response_model=List[UserBase])
 async def read_users(db: Session = Depends(get_db)):
     users = db.query(User).all()
     if not users:
         raise HTTPException(status_code=404, detail="No users found")
-    return {"users": users}
+    return users
 
 
-@router.get("/user/{user_id}")
+@router.get("/user/{user_id}", response_model=UserBase)
 async def read_user(user_id: int, db: Session = Depends(get_db)):
     user = db.query(User).filter(User.id == user_id).first()
     if not user:
         raise HTTPException(status_code=404, detail=f"No user with id {user_id} found")
-    return {"user": user}
+    return user
 
 
 @router.post("/user/")
-async def add_user(user: UserCreate, db: Session = Depends(get_db)):
+async def add_user(user: UserBase, db: Session = Depends(get_db)):
     hashed_password = get_password_hash(user.password)
     new_user = User(
         name=user.name,
@@ -54,7 +59,7 @@ async def add_user(user: UserCreate, db: Session = Depends(get_db)):
 
 
 @router.put("/user/{user_id}")
-async def update_user(user_id: int, user: UserCreate, db: Session = Depends(get_db)):
+async def update_user(user_id: int, user: UserBase, db: Session = Depends(get_db)):
     old_user = db.query(User).filter(User.id == user_id).first()
     if not old_user:
         raise HTTPException(status_code=404, detail=f"No user with id {user_id} found")
