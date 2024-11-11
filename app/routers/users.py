@@ -6,7 +6,7 @@ from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
 from app.database import get_db
-from app.models import User
+from app.models import Role, RoleEnum, User
 
 router = APIRouter()
 
@@ -44,14 +44,20 @@ async def read_user(user_id: int, db: Session = Depends(get_db)):
 
 
 @router.post("/user/")
-async def add_user(user: UserBase, db: Session = Depends(get_db)):
+async def add_user(
+    user: UserBase, role: RoleEnum = RoleEnum.user, db: Session = Depends(get_db)
+):
     hashed_password = get_password_hash(user.password)
+    role_obj = db.query(Role).filter(Role.name == role).first()
+    if not role_obj:
+        raise HTTPException(status_code=400, detail="Role does not exist")
     new_user = User(
         name=user.name,
         email=user.email,
         username=user.username,
         hashed_password=hashed_password,
     )
+    new_user.roles.append(role_obj)
     db.add(new_user)
     db.commit()
     db.refresh(new_user)
