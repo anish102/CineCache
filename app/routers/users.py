@@ -1,20 +1,22 @@
 from typing import List
 
-from fastapi import APIRouter, Depends, HTTPException
-from passlib.context import CryptContext
+from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi.security import OAuth2PasswordRequestForm
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
+from app.auth import (
+    Token,
+    create_access_token,
+    get_admin_user,
+    get_current_user,
+    get_password_hash,
+    verify_password,
+)
 from app.database import get_db
 from app.models import Role, RoleEnum, User
 
 router = APIRouter()
-
-pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
-
-
-def get_password_hash(password):
-    return pwd_context.hash(password)
 
 
 class UserBase(BaseModel):
@@ -27,7 +29,24 @@ class UserCreate(UserBase):
     password: str
 
 
-@router.get("/users/", response_model=List[UserBase])
+@router.post("/login", response_model=Token)
+async def login(
+    form_data: OAuth2PasswordRequestForm = Depends(), db: Session = Depends(get_db)
+):
+    user = db.query(User).filter(User.username == form_data.username).first()
+    if not user or not verify_password(form_data.password, user.hashed_password):
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid username or password",
+        )
+
+    access_token = create_access_token(data={"sub": user.username})
+    return {"access_token": access_token, "token_type": "bearer"}
+
+
+@router.get(
+    "/users/", response_model=List[UserBase], dependencies=[Depends(get_current_user)]
+)
 async def read_users(db: Session = Depends(get_db)):
     users = db.query(User).all()
     if not users:
@@ -35,7 +54,9 @@ async def read_users(db: Session = Depends(get_db)):
     return users
 
 
-@router.get("/user/{user_id}", response_model=UserBase)
+@router.get(
+    "/user/{user_id}", response_model=UserBase, dependencies=[Depends(get_current_user)]
+)
 async def read_user(user_id: int, db: Session = Depends(get_db)):
     user = db.query(User).filter(User.id == user_id).first()
     if not user:
@@ -43,14 +64,13 @@ async def read_user(user_id: int, db: Session = Depends(get_db)):
     return user
 
 
-@router.post("/user/")
-async def add_user(
-    user: UserBase, role: RoleEnum = RoleEnum.user, db: Session = Depends(get_db)
-):
+@router.post("/user/", dependencies=[Depends(get_admin_user)])
+async def add_user(user: UserCreate, db: Session = Depends(get_db)):
     hashed_password = get_password_hash(user.password)
-    role_obj = db.query(Role).filter(Role.name == role).first()
+    role_obj = db.query(Role).filter(Role.name == RoleEnum.user).first()
     if not role_obj:
         raise HTTPException(status_code=400, detail="Role does not exist")
+
     new_user = User(
         name=user.name,
         email=user.email,
@@ -64,7 +84,7 @@ async def add_user(
     return {"message": "User created successfully"}
 
 
-@router.put("/user/{user_id}")
+@router.put("/user/{user_id}", dependencies=[Depends(get_current_user)])
 async def update_user(user_id: int, user: UserBase, db: Session = Depends(get_db)):
     old_user = db.query(User).filter(User.id == user_id).first()
     if not old_user:
@@ -72,14 +92,12 @@ async def update_user(user_id: int, user: UserBase, db: Session = Depends(get_db
     old_user.name = user.name
     old_user.email = user.email
     old_user.username = user.username
-    if user.password:
-        old_user.hashed_password = get_password_hash(user.password)
     db.commit()
     db.refresh(old_user)
     return {"message": "User updated successfully"}
 
 
-@router.delete("/user/{user_id}")
+@router.delete("/user/{user_id}", dependencies=[Depends(get_admin_user)])
 async def delete_user(user_id: int, db: Session = Depends(get_db)):
     user = db.query(User).filter(User.id == user_id).first()
     if not user:
