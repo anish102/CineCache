@@ -35,7 +35,7 @@ async def add_user_media(
             status_code=404, detail=f"No media with id {user_media.media_id} found"
         )
 
-    new_user_media = UserMedia(
+    new_user_media =    (
         user_id=user.id,
         media_id=media.id,
         status=user_media.status,

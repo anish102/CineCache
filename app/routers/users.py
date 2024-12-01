@@ -39,7 +39,6 @@ async def login(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Invalid username or password",
         )
-
     access_token = create_access_token(data={"sub": user.username})
     return {"access_token": access_token, "token_type": "bearer"}
 
@@ -77,7 +76,7 @@ async def add_user(user: UserCreate, db: Session = Depends(get_db)):
         username=user.username,
         hashed_password=hashed_password,
     )
-    new_user.roles.append(role_obj)
+    new_user.role.append(role_obj)
     db.add(new_user)
     db.commit()
     db.refresh(new_user)
@@ -105,3 +104,26 @@ async def delete_user(user_id: int, db: Session = Depends(get_db)):
     db.delete(user)
     db.commit()
     return {"message": "User deleted successfully"}
+
+
+@router.post("/setup-first-user")
+async def setup_first_user(user: UserCreate, db: Session = Depends(get_db)):
+    existing_users = db.query(User).count()
+    if existing_users > 0:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Initial setup already completed",
+        )
+    hashed_password = get_password_hash(user.password)
+    admin_role = db.query(Role).filter(Role.name == RoleEnum.admin).first()
+    new_user = User(
+        name=user.name,
+        email=user.email,
+        username=user.username,
+        hashed_password=hashed_password,
+        role=admin_role,
+    )
+    db.add(new_user)
+    db.commit()
+    db.refresh(new_user)
+    return {"message": "First user created successfully", "username": new_user.username}

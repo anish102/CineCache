@@ -31,8 +31,7 @@ class Role(Base):
 
     id = Column(Integer, primary_key=True, index=True)
     name = Column(SQLenum(RoleEnum), unique=True, index=True)
-
-    users = relationship("User", back_populates="roles")
+    users = relationship("User", back_populates="role")
 
 
 class UserMedia(Base):
@@ -58,18 +57,8 @@ class User(Base):
     username = Column(String, unique=True, index=True)
     hashed_password = Column(String)
     media_associations = relationship("UserMedia", back_populates="user")
-    roles = relationship("Role", secondary="user_roles", back_populates="users")
-
-
-class UserRoles(Base):
-    __tablename__ = "user_roles"
-
-    user_id = Column(
-        Integer, ForeignKey("users.id", ondelete="CASCADE"), primary_key=True
-    )
-    role_id = Column(
-        Integer, ForeignKey("roles.id", ondelete="CASCADE"), primary_key=True
-    )
+    role_id = Column(Integer, ForeignKey("roles.id"))
+    role = relationship("Role", back_populates="users")
 
 
 class Media(Base):
